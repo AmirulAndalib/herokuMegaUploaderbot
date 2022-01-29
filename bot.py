@@ -102,8 +102,7 @@ def searchuserid(userid):
         for uid in csv_reader:
             if uid[0] == userid:
                 return (uid[1], uid[2])
-        else:
-            return None
+        return None
 
 #Sending msg to user that his login detail is invalid
 async def invalid(event, message):
@@ -118,10 +117,9 @@ async def length_of_file(event, url):
         h = head(url, allow_redirects=True)
         header = h.headers
         content_length = int(header.get('content-length'))
-        file_length = round((content_length/1048576),3)
-        lenres = content_length > 262144000
         userid = str(event.sender_id)
-        if lenres:
+        file_length = round((content_length/1048576),3)
+        if lenres := content_length > 262144000:
             await event.respond((f'This filesize is **{file_length}mb**. {file_limit}'))
             add_usage((f'{userid} tried to upload file with size {file_length}\n'))
             return False
@@ -163,53 +161,48 @@ async def help_handler(event):
 async def send_handler(event):
     if str(event.sender_id) != str(dev):
         return None
-    else:
-        #user_usage.txt file
-        try:
-            await bot.send_file(dev, 'user_usage.txt')
-        except Exception as e:
-            await bot.send_message(dev, str(e))
-        #userdata.csv file
-        try:
-            await bot.send_file(dev, 'userdata.csv')
-        except Exception as e:
-            await bot.send_message(dev, str(e))
+    #user_usage.txt file
+    try:
+        await bot.send_file(dev, 'user_usage.txt')
+    except Exception as e:
+        await bot.send_message(dev, str(e))
+    #userdata.csv file
+    try:
+        await bot.send_file(dev, 'userdata.csv')
+    except Exception as e:
+        await bot.send_message(dev, str(e))
 
 #Delete user_usage.txt file
 @bot.on(events.NewMessage(pattern = r'/delete'))
 async def delete_handler(event):
     if str(event.sender_id) != str(dev):
         return None
-    else:
-        try:
-            await bot.send_file(dev, 'user_usage.txt')
-            remove('user_usage.txt')
-        except Exception as e:
-            await bot.send_message(dev, str(e))
+    try:
+        await bot.send_file(dev, 'user_usage.txt')
+        remove('user_usage.txt')
+    except Exception as e:
+        await bot.send_message(dev, str(e))
 
 #Send all Userid to developer
 @bot.on(events.NewMessage(pattern = r'/users'))
 async def userid_handler(event):
     if str(event.sender_id) != str(dev):
         return None
-    else:
-        with open('user_id.txt','r') as users:
-            msg = ''
-            no_of_user = 0
-            for user in users.readlines():
-                if user:
-                    no_of_user += 1
-                    user = user.split('\n')[0]
-                    msg += (f'[{user}](tg://user?id={user})\n')
-            msg += f'\n**No. of Users are {no_of_user}.**'
-            await bot.send_message(dev, msg)
+    with open('user_id.txt','r') as users:
+        msg = ''
+        no_of_user = 0
+        for user in users.readlines():
+            if user:
+                no_of_user += 1
+                user = user.split('\n')[0]
+                msg += (f'[{user}](tg://user?id={user})\n')
+        msg += f'\n**No. of Users are {no_of_user}.**'
+        await bot.send_message(dev, msg)
 
 #Broadcast To all user
 @bot.on(events.NewMessage(pattern = r'/broadcast'))
 async def broadcast_handler(event):
-    if str(event.sender_id) != str(dev):
-        return None
-    else:
+    if str(event.sender_id) == str(dev):
         message_broadcast = str(event.message.text).split('/broadcast ')[1]
         for user in open('user_id.txt','r').readlines():
             user = int(user.split('\n')[0])
@@ -218,16 +211,15 @@ async def broadcast_handler(event):
             except Exception as e:
                 remove_user_id((str(user)+'\n'))
                 print(e)
-        return None
+    return None
 
 #It will download file for uploading the file, if needed
 @bot.on(events.NewMessage(pattern = r'http'))
 async def download_handler(event):
     userid = str(event.sender_id)
     search_result = searchuserid(userid)
-    not_upload_data = f'{userid}`s file was unable to upload.\n'
     if await search_user_in_channel(userid):
-        if search_result == None:
+        if search_result is None:
             await event.respond(not_loggin, parse_mode = 'html')
             add_usage((f'{userid} tried to upload file without login account.\n'))
             return None
@@ -239,9 +231,10 @@ async def download_handler(event):
                 await event.respond(login_detail_changed, parse_mode = 'html')
                 add_usage(f'{userid}`s login detail had changed.\n')
                 return None
-    
+
         #If url is of mega
         url = str(event.message.text)
+        not_upload_data = f'{userid}`s file was unable to upload.\n'
         if r'https://mega.nz' in url or r'https://mega.co.nz' in url:
             try:
                 message = await event.respond(starting_to_download)
@@ -255,44 +248,41 @@ async def download_handler(event):
                 await bot.edit_message(message, successful_uploaded)
                 add_usage((f'{userid}`s file had been successful uploaded upload.\n'))
                 return None
-    
-        #Url is not of mega
-        else:
-            if await length_of_file(event ,url):
+
+        elif await length_of_file(event ,url):
+            try:
+                files_before = listdir()
+                message = await event.respond(starting_to_download)
+                output = Popen(['wget', url])
+                output.wait()
+            except Exception as e:
+                await bot.edit_message(message, unsuccessful_upload, parse_mode = 'html')
+                add_usage(not_upload_data)
+                print(e)
+                files_after = listdir()
+                filename = str([i for i in files_after if i not in files_before][0])
+                remove(filename)
+                return None
+            else:
+                files_after = listdir()
                 try:
-                    files_before = listdir()
-                    message = await event.respond(starting_to_download)
-                    output = Popen(['wget', url])
-                    output.wait()
+                    filename = str([i for i in files_after if i not in files_before][0])
                 except Exception as e:
                     await bot.edit_message(message, unsuccessful_upload, parse_mode = 'html')
                     add_usage(not_upload_data)
                     print(e)
-                    files_after = listdir()
-                    filename = str([i for i in files_after if i not in files_before][0])
-                    remove(filename)
                     return None
                 else:
-                    files_after = listdir()
-                    try:
-                        filename = str([i for i in files_after if i not in files_before][0])
-                    except Exception as e:
+                    if 'html' in filename:
+                        remove(filename)
                         await bot.edit_message(message, unsuccessful_upload, parse_mode = 'html')
                         add_usage(not_upload_data)
-                        print(e)
-                        return None
                     else:
-                        if 'html' in filename:
-                            remove(filename)
-                            await bot.edit_message(message, unsuccessful_upload, parse_mode = 'html')
-                            add_usage(not_upload_data)
-                            return None
-                        else:
-                            await upload(event, filename , mlog, userid, message)
-                            return None
-            else:
-                await event.respond(unsuccessful_upload, parse_mode = 'html')
-                add_usage(not_upload_data)
+                        await upload(event, filename , mlog, userid, message)
+                    return None
+        else:
+            await event.respond(unsuccessful_upload, parse_mode = 'html')
+            add_usage(not_upload_data)
     else:
         add_usage((f'{userid} tried to upload file without joining channel\n'))
     return None
@@ -358,17 +348,14 @@ async def logging_out_handler(event):
     if event.message.text == '/revoke':
         userid = str(event.sender_id)
         login_detail = searchuserid(userid)
-        if login_detail == None:
+        if login_detail is None:
             await event.respond(revoke_failed, parse_mode = 'html')
             add_usage((f'{userid} tried to logout but he/she not even logged in.\n'))
             return None
         else:
             with open('userdata.csv','r') as userdata:
-                lstdata = []
                 reader1 = reader(userdata)
-                for data in reader1:
-                    if data[0] != userid:
-                        lstdata.append(data)
+                lstdata = [data for data in reader1 if data[0] != userid]
             with open('userdata.csv','w') as userdata:
                 writer1 = writer(userdata)
                 for data in lstdata:
@@ -385,7 +372,7 @@ async def file_handler(event):
         if await search_user_in_channel(userid):
             userid = str(event.sender_id)
             search_result = searchuserid(userid)
-            if search_result == None:
+            if search_result is None:
                 await event.respond(not_loggin, parse_mode = 'html')
                 add_usage((f'{userid} tried to upload file without login account.\n'))
                 return None
@@ -398,7 +385,7 @@ async def file_handler(event):
                     print(e)
                     add_usage(f'{userid}`s login detail had changed.\n')
                     return None
-            
+
             size_of_file = file_info.file.size/1024
             if int(file_info.file.size) > 262144000:
                 await event.respond((f'This filesize is **{size_of_file}mb**. {file_limit}'))
